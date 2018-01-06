@@ -7,4 +7,5 @@ dependencies:
   - netcdf4
   - pandas
   - matplotlib
+  - retrying
   - nb_conda_kernels
