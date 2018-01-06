@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from io import StringIO
+from retrying import retry
 get_ipython().magic('matplotlib inline')
 
 
@@ -60,8 +61,8 @@ Sandwich,           41.767990, -70.466219
 
 # In[5]:
 
-# Create a Pandas DataFrame
-obs=pd.read_csv(StringIO(x.strip()), sep=",\s*",index_col='Station')
+# Create a Pandas DataFrame from the station list
+obs=pd.read_csv(StringIO(x.strip()), sep=",\s*",index_col='Station', engine='python')
 
 
 # In[6]:
@@ -82,25 +83,32 @@ def nearxy(x,y,xi,yi):
 
 # In[8]:
 
-# open NECOFS remote OPeNDAP dataset 
-nc=netCDF4.Dataset(url).variables
+@retry(stop_max_attempt_number=5, wait_fixed=3000)
+def get_nc(url):
+    nc=netCDF4.Dataset(url)
+    return nc
 
 
 # In[9]:
+
+nc = get_nc(url)
+
+
+# In[10]:
 
 # find closest NECOFS nodes to station locations
 obs['0-Based Index'] = nearxy(nc['lon'][:],nc['lat'][:],obs['Lon'],obs['Lat'])
 obs
 
 
-# In[10]:
+# In[11]:
 
 # get time values and convert to datetime objects
 times = nc['time']
 jd = netCDF4.num2date(times[:],times.units)
 
 
-# In[11]:
+# In[12]:
 
 # get all time steps of water level from each station
 nsta = len(obs)
@@ -109,19 +117,19 @@ for i in range(nsta):
     z[:,i] = nc['zeta'][:,obs['0-Based Index'][i]] 
 
 
-# In[12]:
+# In[13]:
 
 # make a DataFrame out of the interpolated time series at each location
 zvals=pd.DataFrame(z,index=jd,columns=obs.index)
 
 
-# In[13]:
+# In[14]:
 
 # list out a few values
 zvals.head()
 
 
-# In[14]:
+# In[15]:
 
 # make a new DataFrame of maximum water levels at all stations
 b=pd.DataFrame(zvals.idxmax(),columns=['time of max water level (UTC)'])
@@ -131,12 +139,12 @@ zmax_heading='zmax (%s)' % nc['zeta'].units
 b[zmax_heading]=zvals.max()
 
 
-# In[15]:
+# In[16]:
 
 b
 
 
-# In[16]:
+# In[17]:
 
 # plotting at DataFrame is easy!
 ax=zvals.plot(figsize=(16,4),grid=True,title=('NECOFS Forecast Water Level from %s Forecast' % model),legend=False);
